@@ -1,0 +1,24 @@
+# 依賴與建置產物
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 環境設定與金鑰（只提交 .env.example）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 個人資料：預設放在專案外，這裡再擋一次以防誤放
+data/
+backups/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+
+# 記錄檔與系統檔
+*.log
+.DS_Store
+Thumbs.db

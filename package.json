@@ -1,0 +1,23 @@
+{
+  "name": "starbrain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "把每天的經驗記成星星，看見自己的快思考與慢思考。",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
+    "build": "npm run build -w apps/web && npm run build -w apps/server",
+    "start": "npm run start -w apps/server",
+    "test": "npm run test -w apps/server && npm run test -w apps/web",
+    "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w apps/server"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
