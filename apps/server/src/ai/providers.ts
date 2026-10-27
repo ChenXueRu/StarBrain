@@ -269,6 +269,33 @@ function ollamaProvider(model: string, baseUrl: string, fetchFn: typeof fetch): 
   })
 }
 
+// ---- 列出本機服務目前可用的模型（網址只用已儲存的設定，不接受前端傳入，避免被拿來打任意位址） ----
+
+const MODELS_TIMEOUT_MS = 5_000
+const MAX_MODELS = 200
+
+export type ModelList = { models: string[]; error?: string }
+
+export async function listModels(settings: AiSettings, provider: string, fetchFn: typeof fetch = fetch): Promise<ModelList> {
+  if (provider !== 'local' && provider !== 'ollama') return { models: [] }
+  const base = (provider === 'local' ? settings.localUrl : settings.ollamaUrl).replace(/\/+$/, '')
+  try {
+    const res = await fetchFn(provider === 'local' ? `${base}/models` : `${base}/api/tags`, {
+      signal: AbortSignal.timeout(MODELS_TIMEOUT_MS),
+    })
+    if (!res.ok) return { models: [], error: `無法取得模型清單（HTTP ${res.status}）` }
+    const data = (await res.json()) as { data?: { id?: unknown }[]; models?: { name?: unknown }[] }
+    const names = (provider === 'local' ? (data.data ?? []).map((item) => item.id) : (data.models ?? []).map((item) => item.name))
+      .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+      .map((name) => name.trim())
+    return { models: [...new Set(names)].slice(0, MAX_MODELS) }
+  } catch (err) {
+    const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+    const detail = timedOut ? `等待超過 ${MODELS_TIMEOUT_MS / 1000} 秒沒有回應` : describeError(err)
+    return { models: [], error: `無法取得模型清單：${detail}`.slice(0, 300) }
+  }
+}
+
 // 檢查設定與金鑰後建立對應的模型連線；設定不完整時回 400
 export function createProvider(settings: AiSettings, secrets: SecretStore, deps: AiDeps): AiProvider {
   const { provider } = settings

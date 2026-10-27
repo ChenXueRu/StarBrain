@@ -5,20 +5,22 @@ import { z } from 'zod'
 import { deleteRow, getRow, HttpError, insertRow, now, parse, parseBody, toJson, updateRow } from '../http.js'
 
 export const groupFields = {
-  level: z.number().int().min(1).max(10),
+  level: z.number().int().min(1).max(3),
   name: z.string().trim().min(1).max(100),
   description: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
 }
 const createSchema = z.strictObject(groupFields)
 const updateSchema = z.strictObject(groupFields).partial()
-const levelQuery = z.coerce.number().int().min(1).max(10)
+const levelQuery = z.coerce.number().int().min(1).max(3)
 
 // 群組加上直接歸入的星體數與下層群組數
 const GROUPS_WITH_COUNTS = `SELECT g.*,
   (SELECT COUNT(*) FROM stars s WHERE s.group_id = g.id) AS star_count,
   (SELECT COUNT(*) FROM star_groups c WHERE c.parent_id = g.id) AS child_count
   FROM star_groups g`
+
+const FIXED_MESSAGE = '超星系團是固定的，不能新增、修改或刪除'
 
 // 上層群組的層級必須比自己大，這同時排除了自己當自己的上層與循環
 function checkParent(db: DatabaseSync, id: string | null, level: number, parentId: string | null | undefined) {
@@ -45,6 +47,7 @@ export function groupsRoutes(db: DatabaseSync) {
 
   app.post('/', async (c) => {
     const body = await parseBody(c, createSchema)
+    if (body.level === 3) throw new HttpError(400, FIXED_MESSAGE)
     checkParent(db, null, body.level, body.parentId)
     const id = randomUUID()
     const time = now()
@@ -58,6 +61,7 @@ export function groupsRoutes(db: DatabaseSync) {
     const id = c.req.param('id')
     const existing = getRow(db, 'star_groups', id)
     const body = await parseBody(c, updateSchema)
+    if (existing.level === 3 || body.level === 3) throw new HttpError(400, FIXED_MESSAGE)
     const level = body.level ?? (existing.level as number)
     const parentId = body.parentId === undefined ? (existing.parent_id as string | null) : body.parentId
     checkParent(db, id, level, parentId)
@@ -70,7 +74,9 @@ export function groupsRoutes(db: DatabaseSync) {
   })
 
   app.delete('/:id', (c) => {
-    deleteRow(db, 'star_groups', c.req.param('id'))
+    const id = c.req.param('id')
+    if (getRow(db, 'star_groups', id).level === 3) throw new HttpError(400, FIXED_MESSAGE)
+    deleteRow(db, 'star_groups', id)
     return c.body(null, 204)
   })
 

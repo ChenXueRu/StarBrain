@@ -1,14 +1,17 @@
 import { Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import { createGroup, deleteStar, getStar, listGroups, updateStar } from '../api'
-import type { Category, Group, StarChanges, StarDetail, StarRecord } from '../api'
-import { formatDateTime, gradeName, KIND_LABEL, OUTCOME_LABEL } from '../starUtils'
+import { createGroup, deleteStar, getStar, listGroups, updateRecord, updateStar } from '../api'
+import type { Group, RecordChanges, StarChanges, StarDetail, StarRecord } from '../api'
+import { knownGroupList, knownStar, takeStarDetail } from '../starCache'
+import { formatDateTime, gradeName, KIND_LABEL, orbitContent } from '../starUtils'
+import { FrameworkPicker } from './FrameworkPicker'
+import { StarOrbit } from './StarOrbit'
 
 type Props = {
   starId: string
   onClose: () => void
-  categories: Category[]
+  frameworks: string[]
   onChanged: () => void
 }
 
@@ -23,56 +26,143 @@ const NODES = [
 
 const NEW_GROUP = '__new__'
 
-function RecordItem({ record }: { record: StarRecord }) {
-  const filled = NODES.filter(({ key }) => (record[key] ?? '').trim() !== '')
+// 思維節點的顯示：「換位思考、正反比較｜補充文字」
+function nodeText(record: StarRecord, key: (typeof NODES)[number]['key']) {
+  const text = (record[key] ?? '').trim()
+  if (key !== 'mindset') return text
+  return [record.mindsetFrameworks.join('、'), text].filter((part) => part !== '').join('｜')
+}
+
+type RecordItemProps = {
+  record: StarRecord
+  selected: boolean
+  onSelect: () => void
+  frameworks: string[]
+  // 儲存思維後呼叫；失敗時丟出錯誤，由這裡顯示
+  onSaveMindset: (changes: RecordChanges) => Promise<void>
+}
+
+function RecordItem({ record, selected, onSelect, frameworks, onSaveMindset }: RecordItemProps) {
+  const [editing, setEditing] = useState(false)
+  const [picked, setPicked] = useState<string[]>([])
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const filled = NODES.filter(({ key }) => nodeText(record, key) !== '')
+
+  const startEdit = () => {
+    setPicked(record.mindsetFrameworks)
+    setText(record.mindset ?? '')
+    setError('')
+    setEditing(true)
+  }
+
+  const saveEdit = async () => {
+    try {
+      const next = text.trim()
+      await onSaveMindset({ mindsetFrameworks: picked, mindset: next === '' ? null : next })
+      setEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '儲存失敗')
+    }
+  }
+
   return (
-    <li className="record">
+    <li className={selected ? 'record record--on' : 'record'}>
       <div className="record__meta">
         <span className="record__date">{formatDateTime(record.occurredAt)}</span>
         <span className={`record__kind record__kind--${record.kind}`}>{KIND_LABEL[record.kind]}</span>
-        <span className={`record__outcome record__outcome--${record.outcome}`}>{OUTCOME_LABEL[record.outcome]}</span>
       </div>
-      <p className="record__problem">{record.problem}</p>
+      <button type="button" className="record__select" aria-pressed={selected} onClick={onSelect}>
+        {record.problem}
+      </button>
       {filled.length > 0 && (
         <dl className="record__nodes">
           {filled.map(({ key, label }) => (
             <div key={key}>
               <dt>{label}</dt>
-              <dd>{record[key]}</dd>
+              <dd>{nodeText(record, key)}</dd>
             </div>
           ))}
         </dl>
+      )}
+      {(record.aiAnswer ?? '').trim() !== '' && (
+        <div className="ai-view">
+          <span className="ai-view__label">AI 觀點</span>
+          <p className="ai-view__text">{(record.aiAnswer ?? '').trim()}</p>
+        </div>
+      )}
+      {editing ? (
+        <div className="field record__edit">
+          <span className="field__label">思維</span>
+          <FrameworkPicker frameworks={frameworks} selected={picked} onChange={setPicked} />
+          <textarea
+            className="field__control"
+            rows={2}
+            aria-label="思維補充"
+            value={text}
+            placeholder="補充（選填）"
+            onChange={(e) => setText(e.target.value)}
+          />
+          {error && <p className="form-error">{error}</p>}
+          <div className="category-add">
+            <button type="button" className="button" onClick={() => void saveEdit()}>
+              儲存
+            </button>
+            <button type="button" className="button" onClick={() => setEditing(false)}>
+              取消
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="chip" onClick={startEdit}>
+          編輯思維
+        </button>
       )}
     </li>
   )
 }
 
-export function StarPanel({ starId, onClose, categories, onChanged }: Props) {
+export function StarPanel({ starId, onClose, frameworks, onChanged }: Props) {
+  // 宇宙清單裡已經有主題、等級與次數：先用它們畫出面板，只有紀錄要等網路
+  const [summary] = useState(() => knownStar(starId))
   const [star, setStar] = useState<StarDetail | null>(null)
-  const [groups, setGroups] = useState<Group[]>([])
-  const [topic, setTopic] = useState('')
-  const [goal, setGoal] = useState('')
+  const [groups, setGroups] = useState<Group[]>(() => knownGroupList().filter((group) => group.level === 1))
+  const [topic, setTopic] = useState(summary?.topic ?? '')
+  const [goal, setGoal] = useState(summary?.goal ?? '')
   const [addingGroup, setAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
+  const [recordId, setRecordId] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    const detail = await getStar(starId)
+  const applyDetail = useCallback((detail: StarDetail) => {
     setStar(detail)
     setTopic(detail.topic)
     setGoal(detail.goal ?? '')
-  }, [starId])
+  }, [])
+
+  // 儲存後的重新載入一律現抓
+  const load = useCallback(async () => applyDetail(await getStar(starId)), [starId, applyDetail])
 
   const loadGroups = useCallback(async () => {
     setGroups((await listGroups()).filter((group) => group.level === 1))
   }, [])
 
   useEffect(() => {
-    load().catch((err) => setLoadError(err instanceof Error ? err.message : '無法載入星體'))
+    // 第一次載入接手點下星星時就開始抓的那一份
+    let ignore = false
+    takeStarDetail(starId)
+      .then((detail) => !ignore && applyDetail(detail))
+      .catch((err) => !ignore && setLoadError(err instanceof Error ? err.message : '無法載入星體'))
+    return () => {
+      ignore = true
+    }
+  }, [starId, applyDetail])
+
+  useEffect(() => {
     // 星系清單載入失敗時，仍可編輯其他欄位
     loadGroups().catch(() => {})
-  }, [load, loadGroups])
+  }, [loadGroups])
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -175,29 +265,35 @@ export function StarPanel({ starId, onClose, categories, onChanged }: Props) {
   }
 
   // 目前所屬的星系若不是 1 級（只可能經由原始 API 設定），仍要能顯示
-  const groupId = star?.groupId ?? ''
+  // 預設選最新一筆；選的那筆被刪掉或不存在時也回到最新
+  const selectedRecord = star ? (star.records.find((record) => record.id === recordId) ?? star.records[star.records.length - 1] ?? null) : null
+  // 詳細資料還沒回來時，用宇宙清單裡的基本資料先畫
+  const head = star ?? summary ?? null
+  const groupId = head?.groupId ?? ''
   const groupMissing = groupId !== '' && !groups.some((group) => group.id === groupId)
 
   return (
     <div className="overlay" onClick={onClose}>
       <aside className="panel" role="dialog" aria-label="星體" onClick={(e) => e.stopPropagation()}>
         <header className="panel__header">
-          <h2 className="star-panel__title">{star?.topic ?? '星體'}</h2>
+          <h2 className="star-panel__title">{head?.topic ?? '星體'}</h2>
           <button className="icon-button" aria-label="關閉" onClick={onClose}>
             <X size={20} />
           </button>
         </header>
 
         {loadError && <p className="form-error">{loadError}</p>}
-        {star && (
+        {head && (
           <>
             <p className="star-panel__summary">
-              {gradeName(star.grade)} · {star.lit ? '點亮' : '黯淡'}
+              {gradeName(head.grade)} · {head.lit ? '點亮' : '黯淡'}
               <br />
               <span className="star-panel__counts">
-                慢思考 {star.slowCount} · 快思考 {star.fastCount} · 快思考且未成功 {star.fastFailureCount}
+                慢思考 {head.slowCount} · 快思考 {head.fastCount} · 背景思考中 {head.incubatingCount}
               </span>
             </p>
+
+            {selectedRecord && <StarOrbit key={selectedRecord.id} content={orbitContent(selectedRecord)} />}
 
             <label className="field star-panel__field">
               <span className="field__label">主題</span>
@@ -205,9 +301,10 @@ export function StarPanel({ starId, onClose, categories, onChanged }: Props) {
                 className="field__control"
                 value={topic}
                 maxLength={200}
+                disabled={!star}
                 onChange={(e) => setTopic(e.target.value)}
                 onBlur={saveTopic}
-                onKeyDown={(e) => onFieldKey(e, topic !== star.topic, () => setTopic(star.topic))}
+                onKeyDown={(e) => onFieldKey(e, topic !== head.topic, () => setTopic(head.topic))}
               />
             </label>
 
@@ -218,35 +315,20 @@ export function StarPanel({ starId, onClose, categories, onChanged }: Props) {
                 rows={2}
                 value={goal}
                 placeholder="這件事想達成什麼？"
+                disabled={!star}
                 onChange={(e) => setGoal(e.target.value)}
                 onBlur={saveGoal}
                 onKeyDown={(e) => {
                   // 目標可以換行，用 Shift+Enter 換行，Enter 直接儲存
                   if (e.shiftKey && e.key === 'Enter') return
-                  onFieldKey(e, goal !== (star.goal ?? ''), () => setGoal(star.goal ?? ''))
+                  onFieldKey(e, goal !== (head.goal ?? ''), () => setGoal(head.goal ?? ''))
                 }}
               />
             </label>
 
             <label className="field star-panel__field">
-              <span className="field__label">情境分類</span>
-              <select
-                className="field__control"
-                value={star.categoryId ?? ''}
-                onChange={(e) => void save({ categoryId: e.target.value === '' ? null : e.target.value })}
-              >
-                <option value="">未分類</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field star-panel__field">
               <span className="field__label">所屬星系</span>
-              <select className="field__control" value={groupId} onChange={(e) => chooseGroup(e.target.value)}>
+              <select className="field__control" value={groupId} disabled={!star} onChange={(e) => chooseGroup(e.target.value)}>
                 <option value="">無</option>
                 {groupMissing && <option value={groupId}>（其他層級的群組）</option>}
                 {groups.map((group) => (
@@ -277,17 +359,31 @@ export function StarPanel({ starId, onClose, categories, onChanged }: Props) {
             {error && <p className="form-error">{error}</p>}
 
             <section className="settings-section">
-              <h3>紀錄（{star.recordCount}）</h3>
+              <h3>紀錄（{head.recordCount}）</h3>
+              {!star && !loadError && <p className="panel__hint">載入紀錄中…</p>}
               <ul className="record-list">
-                {[...star.records].reverse().map((record) => (
-                  <RecordItem key={record.id} record={record} />
+                {[...(star?.records ?? [])].reverse().map((record) => (
+                  <RecordItem
+                    key={record.id}
+                    record={record}
+                    selected={record.id === selectedRecord?.id}
+                    onSelect={() => setRecordId(record.id)}
+                    frameworks={frameworks}
+                    onSaveMindset={async (changes) => {
+                      await updateRecord(record.id, changes)
+                      await load()
+                      onChanged()
+                    }}
+                  />
                 ))}
               </ul>
             </section>
 
-            <button className="button button--danger star-panel__delete" onClick={() => void remove()}>
-              <Trash2 size={16} /> 刪除星體
-            </button>
+            {star && (
+              <button className="button button--danger star-panel__delete" onClick={() => void remove()}>
+                <Trash2 size={16} /> 刪除星體
+              </button>
+            )}
           </>
         )}
       </aside>

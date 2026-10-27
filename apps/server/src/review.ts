@@ -1,13 +1,14 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { parseFrameworks } from './http.js'
 import { evaluateStar } from './rules.js'
 import type { RecordKind, RuleRecord } from './rules.js'
 import { readStarRules } from './routes/settings.js'
 
 const DAY = 86_400_000
-const counts = () => ({ birth: 0, slow: 0, fast: 0 })
+const counts = () => ({ fast: 0, slow: 0, incubating: 0 })
 const totals = () => ({ records: 0, ...counts(), success: 0, failure: 0, unknown: 0 })
 type ReviewRecord = RuleRecord & {
-  starId: string; problem: string; idea: string | null; conclusion: string | null
+  starId: string; problem: string; idea: string | null; conclusion: string | null; viewpoint: string | null
   outcome: 'success' | 'failure' | 'unknown'
 }
 
@@ -18,13 +19,30 @@ function load(db: DatabaseSync) {
     const record: ReviewRecord = {
       id: row.id as string, starId: row.star_id as string,
       occurredAt: row.occurred_at as string, createdAt: row.created_at as string,
-      mindset: row.mindset as string | null, thinking: row.thinking as string | null,
+      mindset: row.mindset as string | null, mindsetFrameworks: parseFrameworks(row.mindset_frameworks), thinking: row.thinking as string | null,
       outcome: row.outcome as ReviewRecord['outcome'], problem: row.problem as string,
-      idea: row.idea as string | null, conclusion: row.conclusion as string | null,
+      idea: row.idea as string | null, conclusion: row.conclusion as string | null, viewpoint: row.viewpoint as string | null,
     }
     const list = byStar.get(record.starId) ?? []
     list.push(record)
     byStar.set(record.starId, list)
+  }
+  const groups = new Map(
+    db.prepare('SELECT id, name, level, parent_id FROM star_groups').all().map((row) => [
+      row.id as string,
+      { name: row.name as string, level: row.level as number, parentId: row.parent_id as string | null },
+    ]),
+  )
+  // 星體所屬的星系團（層級 2）：從所屬群組往上找，層數有上限避免壞資料造成無窮迴圈
+  const clusterOf = (groupId: string | null) => {
+    let id = groupId
+    for (let i = 0; id && i < 10; i++) {
+      const group = groups.get(id)
+      if (!group) break
+      if (group.level === 2) return { clusterId: id, clusterName: group.name }
+      id = group.parentId
+    }
+    return { clusterId: null, clusterName: '未歸類' }
   }
   const stars = db.prepare(
     'SELECT s.*, c.name AS category_name FROM stars s LEFT JOIN categories c ON c.id = s.category_id',
@@ -34,7 +52,7 @@ function load(db: DatabaseSync) {
     const kinds = new Map(evaluation.kinds.map(({ id, kind }) => [id, kind]))
     return {
       starId: row.id as string, topic: row.topic as string, groupId: row.group_id as string | null,
-      categoryId: row.category_id as string | null, categoryName: row.category_name as string | null,
+      categoryName: row.category_name as string | null, ...clusterOf(row.group_id as string | null),
       evaluation, records: records.map((record) => ({ ...record, kind: kinds.get(record.id)! })),
     }
   })
@@ -56,9 +74,9 @@ export function getReview(db: DatabaseSync, { days = 30 }: { days?: number } = {
   const from = new Date(now.getTime() - days * DAY)
   const { stars } = load(db)
   const total = totals()
-  const categories = new Map<string | null, { categoryId: string | null; name: string; birth: number; slow: number; fast: number; fastFailure: number }>()
+  const clusters = new Map<string | null, { clusterId: string | null; name: string; fast: number; slow: number; incubating: number; fastFailure: number }>()
   const unit = days <= 14 ? 'day' : 'week'
-  const buckets = new Map<string, { start: string; birth: number; slow: number; fast: number }>()
+  const buckets = new Map<string, { start: string; fast: number; slow: number; incubating: number }>()
   for (const cursor = bucketDate(from, unit); cursor <= now; cursor.setDate(cursor.getDate() + (unit === 'day' ? 1 : 7))) {
     const start = dateKey(cursor)
     buckets.set(start, { start, ...counts() })
@@ -72,16 +90,16 @@ export function getReview(db: DatabaseSync, { days = 30 }: { days?: number } = {
       total.records++
       total[record.kind]++
       total[record.outcome]++
-      const category = categories.get(star.categoryId) ?? { categoryId: star.categoryId, name: star.categoryName ?? '未分類', ...counts(), fastFailure: 0 }
-      category[record.kind]++
+      const cluster = clusters.get(star.clusterId) ?? { clusterId: star.clusterId, name: star.clusterName, ...counts(), fastFailure: 0 }
+      cluster[record.kind]++
       buckets.get(dateKey(bucketDate(new Date(record.occurredAt), unit)))![record.kind]++
       if (record.kind === 'fast' && record.outcome === 'failure') {
-        category.fastFailure++
+        cluster.fastFailure++
         fastFailures.push({ recordId: record.id, starId: star.starId, topic: star.topic, categoryName: star.categoryName,
           occurredAt: record.occurredAt, problem: record.problem, idea: record.idea, conclusion: record.conclusion })
       }
       if (record.kind === 'fast' && record.outcome === 'success') fastSuccess++
-      categories.set(star.categoryId, category)
+      clusters.set(star.clusterId, cluster)
     }
     if (fastSuccess) internalized.push({ starId: star.starId, topic: star.topic, fastSuccess })
   }
@@ -94,7 +112,7 @@ export function getReview(db: DatabaseSync, { days = 30 }: { days?: number } = {
   }).sort((a, b) => a.since.localeCompare(b.since) || a.groupId.localeCompare(b.groupId))
   return {
     days, from: from.toISOString(), to: now.toISOString(), totals: total,
-    byCategory: [...categories.values()].sort((a, b) => (b.birth + b.slow + b.fast) - (a.birth + a.slow + a.fast) || a.name.localeCompare(b.name)),
+    byCluster: [...clusters.values()].sort((a, b) => (b.fast + b.slow + b.incubating) - (a.fast + a.slow + a.incubating) || a.name.localeCompare(b.name)),
     byTime: { unit, buckets: [...buckets.values()] },
     fastFailures: fastFailures.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || a.recordId.localeCompare(b.recordId)).slice(0, 50),
     internalized: internalized.sort((a, b) => b.fastSuccess - a.fastSuccess || a.topic.localeCompare(b.topic)).slice(0, 10),
@@ -122,9 +140,11 @@ export function getWeeklyReview(db: DatabaseSync, _options: Record<string, never
       target.records++
       target[record.kind as RecordKind]++
       if (record.outcome !== 'unknown') target[record.outcome]++
-      if (isCurrent && record.kind === 'birth') newStars.push(identity)
       if (isCurrent && record.kind === 'fast' && record.outcome === 'failure') fastFailures++
     }
+    // 第一筆（最早）紀錄落在本週，就是本週新出現的星體
+    const first = star.records.find((record) => record.id === star.evaluation.kinds[0]?.id)
+    if (first && inWindow(first.occurredAt, from, now)) newStars.push(identity)
     const before = evaluateStar(star.records.filter((record) => new Date(record.occurredAt) < from), rules)
     const after = evaluateStar(star.records.filter((record) => new Date(record.occurredAt) <= now), rules)
     if (!before.lit && after.lit) newlyLit.push(identity)

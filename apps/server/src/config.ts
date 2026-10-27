@@ -35,4 +35,10 @@ if (!outsideRepo(config.backupDir)) {
 }
 
 mkdirSync(config.dataDir, { recursive: true })
-mkdirSync(config.backupDir, { recursive: true })
+// 備份資料夾可能在還沒掛載的雲端硬碟上（例如開機時 Google Drive 晚幾秒才出現），
+// 建不起來不影響啟動；每次備份前會再建立一次，排程每小時重試
+try {
+  mkdirSync(config.backupDir, { recursive: true })
+} catch (err) {
+  console.error(`暫時無法建立備份資料夾 ${config.backupDir}，稍後備份時會再試`, err)
+}

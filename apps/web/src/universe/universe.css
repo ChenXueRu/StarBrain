@@ -1,0 +1,735 @@
+/* 3D 宇宙的標籤、視角列與結構面板。共用的底色、字色沿用 styles.css 的 :root 變數 */
+
+.universe-dock,
+.stree,
+.universe__labels {
+  --glass: rgba(8, 12, 24, 0.74);
+  --glass-border: rgba(148, 163, 184, 0.2);
+  --tree-width: 360px;
+}
+
+/* ---------- 3D 標籤：超星系團 > 星系團 > 星系 > 星體，越上層越大越亮 ---------- */
+
+/* 星系團、星系與星體的小標籤都是深色半透明的膠囊，加一圈淡淡的亮邊與近白的字，才不會被背後的星雲粒子吃掉。
+   數量很多，所以不用 backdrop-filter（手機會卡）；只有最上層的三個超星系團用 */
+.universe__labels .universe-label--group {
+  position: absolute;
+  padding: 3px 12px;
+  border: 1px solid color-mix(in srgb, var(--hue) 45%, transparent);
+  border-radius: 999px;
+  background: rgba(6, 8, 20, 0.62);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--hue) 32%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: color-mix(in srgb, var(--hue) 72%, white);
+  text-shadow: none;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+/* 比看到的範圍再大一圈的點擊區，手指比較好點 */
+.universe__labels .universe-label--group::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.universe__labels .universe-label--l3 {
+  max-width: 240px;
+  padding: 5px 18px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  background: rgba(6, 8, 20, 0.72);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--hue) 50%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.universe__labels .universe-label--l2,
+.universe__labels .universe-label--l1,
+.universe__labels .universe-label--star {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 12, 28, 0.6);
+  color: #f1f4ff;
+  text-shadow: none;
+}
+
+.universe__labels .universe-label--l2 {
+  padding: 3px 13px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--hue) 24%, transparent);
+}
+
+.universe__labels .universe-label--l1 {
+  padding: 1px 9px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  box-shadow: none;
+}
+
+.universe__labels .universe-label--group:hover,
+.universe__labels .universe-label--group:focus-visible {
+  opacity: 1;
+  color: #fff;
+}
+
+.universe__labels .universe-label--star {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  opacity: 0.95;
+}
+
+/* ---------- 右側視角列 ---------- */
+
+.universe-dock {
+  position: absolute;
+  right: calc(var(--gutter) - 4px);
+  /* 避開上方的頂部列（約 48px）與下方的輸入框（約 130px 高） */
+  top: calc(env(safe-area-inset-top) + 64px);
+  bottom: calc(env(safe-area-inset-bottom) + 170px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  transition: right 0.28s ease;
+}
+
+.universe-dock > * {
+  pointer-events: auto;
+}
+
+/* 全景與三個超星系團：裝在同一條半透明的長條底座裡 */
+.universe-dock__base {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(22, 30, 58, 0.58), rgba(8, 12, 24, 0.58));
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.5),
+    0 0 22px rgba(125, 211, 252, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.universe-dock__btn {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.universe-dock__btn:hover,
+.universe-dock__btn:focus-visible {
+  transform: scale(1.06);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: var(--text);
+}
+
+.universe-dock__btn[data-active='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.universe-dock__btn--orb {
+  border-color: color-mix(in srgb, var(--hue) 50%, transparent);
+}
+
+.universe-dock__btn--home {
+  --hue: #7dd3fc;
+  color: #d6f1ff;
+}
+
+/* 底座裡的按鈕：自己一圈霓虹光環（顏色取自 --hue）。底座已經做了霧面，按鈕不再各自模糊 */
+.universe-dock__base .universe-dock__btn {
+  border-color: color-mix(in srgb, var(--hue) 65%, transparent);
+  background: rgba(8, 12, 24, 0.5);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--hue) 45%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--hue) 22%, transparent);
+}
+
+.universe-dock__base .universe-dock__btn:hover,
+.universe-dock__base .universe-dock__btn:focus-visible {
+  border-color: color-mix(in srgb, var(--hue) 90%, white);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--hue) 70%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--hue) 32%, transparent);
+}
+
+.universe-dock__orb {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--hue) 35%, white), var(--hue) 60%, color-mix(in srgb, var(--hue) 55%, black));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--hue) 70%, transparent);
+  color: #0b0d1c;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.universe-dock__sep {
+  flex: none;
+  width: 22px;
+  height: 1px;
+  background: var(--glass-border);
+}
+
+/* 名稱提示：只在能滑過的裝置上出現，手機靠上面的 aria-label 與圖示顏色辨識 */
+.universe-dock__tip {
+  display: none;
+}
+
+@media (hover: hover) {
+  .universe-dock__tip {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 10px);
+    display: block;
+    padding: 4px 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(6, 8, 20, 0.95);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(6px, -50%);
+    transition:
+      opacity 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  .universe-dock__btn:hover .universe-dock__tip,
+  .universe-dock__btn:focus-visible .universe-dock__tip {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
+/* 結構面板在桌機是右側滑出，視角列讓到它的左邊 */
+@media (min-width: 641px) {
+  .universe-dock[data-open='true'] {
+    right: calc(var(--tree-width) + var(--gutter) + 12px);
+  }
+}
+
+/* 面板在手機是蓋住下半部的抽屜，視角列先藏起來 */
+@media (max-width: 640px) {
+  .universe-dock[data-open='true'] {
+    visibility: hidden;
+  }
+}
+
+/* 螢幕很矮（手機橫放）時縮小按鈕，避免超出可用範圍 */
+@media (max-height: 560px) {
+  .universe-dock {
+    top: calc(env(safe-area-inset-top) + 56px);
+    bottom: calc(env(safe-area-inset-bottom) + 12px);
+    gap: 4px;
+  }
+
+  .universe-dock__base {
+    gap: 4px;
+    padding: 4px;
+    border-radius: 18px;
+  }
+
+  .universe-dock__btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .universe-dock__orb {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* ---------- 結構樹面板 ---------- */
+
+.stree {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 60px);
+  right: var(--gutter);
+  /* 桌機留出下方輸入框的位置 */
+  bottom: calc(env(safe-area-inset-bottom) + 160px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--tree-width), calc(100vw - 2 * var(--gutter)));
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  background: rgba(8, 12, 24, 0.84);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  animation: stree-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes stree-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes stree-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+
+@media (max-width: 640px) {
+  /* 手機：整個寬度的抽屜，從畫面底部升起，上方留一截宇宙看得到鏡頭飛行 */
+  .stree {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 66dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-right: none;
+    border-bottom: none;
+    border-left: none;
+    border-radius: 18px 18px 0 0;
+    animation-name: stree-up;
+  }
+}
+
+.stree__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stree__header h2 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.stree__error {
+  flex: none;
+  margin: 0;
+  padding: 8px 16px;
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--offline);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.stree__body {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+.stree__hint {
+  margin: 6px 6px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* 樹：每一層縮排一點，用細線把子項接回上一層，線的顏色跟著超星系團 */
+.stree__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stree__list:not(.stree__list--root) {
+  margin-left: 11px;
+  padding-left: 12px;
+}
+
+.stree__node {
+  position: relative;
+}
+
+.stree__list:not(.stree__list--root) > .stree__node::before,
+.stree__list:not(.stree__list--root) > .stree__node::after {
+  content: '';
+  position: absolute;
+  left: -12px;
+  background: color-mix(in srgb, var(--hue) 35%, transparent);
+  pointer-events: none;
+}
+
+/* 豎線；最後一項只畫到橫線的高度 */
+.stree__list:not(.stree__list--root) > .stree__node::before {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.stree__list:not(.stree__list--root) > .stree__node:last-child::before {
+  bottom: auto;
+  height: 18px;
+}
+
+/* 橫線 */
+.stree__list:not(.stree__list--root) > .stree__node::after {
+  top: 18px;
+  width: 10px;
+  height: 1px;
+}
+
+.stree__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+}
+
+.stree__chev {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.stree__chev svg {
+  transition: transform 0.2s ease;
+}
+
+.stree__chev[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+
+.stree__chev--none {
+  cursor: default;
+}
+
+.stree__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hue);
+  box-shadow: 0 0 8px var(--hue);
+}
+
+.stree__node--l3 > .stree__row .stree__dot {
+  width: 12px;
+  height: 12px;
+  box-shadow: 0 0 12px var(--hue);
+}
+
+.stree__name {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stree__name:hover {
+  color: color-mix(in srgb, var(--hue) 60%, white);
+}
+
+.stree__node--l2 > .stree__row .stree__name {
+  font-size: 14px;
+}
+
+.stree__node--l3 > .stree__row .stree__name {
+  color: color-mix(in srgb, var(--hue) 65%, white);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.stree__count {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stree__actions {
+  display: flex;
+  flex: none;
+}
+
+.stree__btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.stree__btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.stree__btn--danger:hover:not(:disabled) {
+  color: var(--offline);
+}
+
+.stree__btn:disabled,
+.stree__select:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 改名、新增：就在那一列上變成輸入框 */
+.stree__edit {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stree__edit--add {
+  min-height: 36px;
+  padding-left: 4px;
+}
+
+.stree__edit input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--hue, #8ea2d9) 60%, transparent);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 14px;
+  outline: none;
+}
+
+.stree__edit input:focus {
+  border-color: color-mix(in srgb, var(--hue, #8ea2d9) 85%, white);
+}
+
+.stree__star {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stree__star:hover {
+  color: var(--text);
+}
+
+.stree__star-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.stree__loose {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.stree__loose h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px 6px;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.stree__loose-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stree__loose-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.stree__loose-row .stree__star {
+  flex: 1;
+}
+
+.stree__select {
+  flex: none;
+  width: 124px;
+  height: 36px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+}
+
+.stree__select option {
+  background: var(--surface-solid);
+}
+
+.stree__btn:focus-visible,
+.stree__chev:focus-visible,
+.stree__name:focus-visible,
+.stree__star:focus-visible,
+.stree__select:focus-visible,
+.universe-dock__btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--hue, #8ea2d9) 70%, white);
+  outline-offset: -2px;
+}
+
+/* 手指操作：按鈕至少 36px 寬，輸入框用 16px 以免 iOS 自動放大畫面 */
+@media (pointer: coarse) {
+  .stree__btn {
+    width: 36px;
+  }
+
+  /* 展開箭頭也加寬到好點的大小，樹的縮排隨著對齊箭頭中心 */
+  .stree__chev {
+    width: 36px;
+  }
+
+  .stree__list:not(.stree__list--root) {
+    margin-left: 18px;
+  }
+
+  .stree__edit input,
+  .stree__select {
+    font-size: 16px;
+  }
+
+  .stree__edit input {
+    height: 36px;
+  }
+
+  .stree__star {
+    height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stree,
+  .universe-dock,
+  .universe-dock__btn,
+  .universe-dock__tip,
+  .stree__chev svg,
+  .universe__labels .universe-label--group {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* 手機：超星系團與其他名稱的膠囊縮小約 30%，才不會蓋住太多星體 */
+@media (max-width: 640px) {
+  .universe__labels .universe-label--l3 {
+    padding: 3px 12px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+
+  .universe__labels .universe-label--l2 {
+    padding: 2px 9px;
+    font-size: 10px;
+  }
+
+  .universe__labels .universe-label--l1 {
+    padding: 1px 6px;
+    font-size: 9px;
+  }
+
+  .universe__labels .universe-label--star {
+    padding: 1px 6px;
+    font-size: 9px;
+  }
+}

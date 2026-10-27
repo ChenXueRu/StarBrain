@@ -75,6 +75,26 @@ export const migrations: string[] = [
   CREATE UNIQUE INDEX idx_records_client_ref ON records(client_ref);
   CREATE UNIQUE INDEX idx_ideas_client_ref ON ideas(client_ref);
   `,
+  `
+  ALTER TABLE records ADD COLUMN mindset_frameworks TEXT;
+  `,
+  // 群組由四層改為三層（星系、星系團、超星系團）：原本的星系群（層級 2）改掛到原星系團的上層，
+  // 原星系團與超星系團各降一層；自訂層級名稱不再使用
+  `
+  UPDATE star_groups
+    SET parent_id = (SELECT p.parent_id FROM star_groups p WHERE p.id = star_groups.parent_id)
+    WHERE level = 2 AND parent_id IN (SELECT id FROM star_groups WHERE level = 3);
+  UPDATE star_groups SET level = level - 1 WHERE level >= 3;
+  DELETE FROM settings WHERE key = 'levelNames';
+  `,
+  // 想法收件匣的主題：沒有主題就是 NULL（未分類）
+  `
+  ALTER TABLE ideas ADD COLUMN topic TEXT;
+  `,
+  // 紀錄的「AI 觀點」：匯入 AI 對話時 AI 回答的摘要；沒有就是 NULL，不參與點亮規則
+  `
+  ALTER TABLE records ADD COLUMN ai_answer TEXT;
+  `,
 ]
 
 export const SCHEMA_VERSION = migrations.length

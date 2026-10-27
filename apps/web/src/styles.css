@@ -42,6 +42,12 @@ textarea {
   color: inherit;
 }
 
+/* 下拉選單展開後的選項：Windows 上預設白底，配淺色字會看不到 */
+option {
+  background: var(--bg);
+  color: var(--text);
+}
+
 .app {
   position: relative;
   height: 100dvh;
@@ -241,8 +247,12 @@ textarea {
 }
 
 .brand {
+  min-width: 0;
+  overflow: hidden;
   font-weight: 600;
   letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status {
@@ -258,6 +268,17 @@ textarea {
 
 .status--offline {
   background: var(--offline);
+}
+
+/* 畫面上的資料是離線快取（唯讀）時顯示在狀態燈旁邊 */
+.topbar__offline {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--offline);
+  border-radius: 999px;
+  color: var(--offline);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .icon-button {
@@ -280,6 +301,27 @@ textarea {
   cursor: default;
 }
 
+/* 頂部列的圖示按鈕：各自一個圓角方框，霧面玻璃底加細邊，和右側視角列的按鈕同一種質感；手機上 40px 見方好點 */
+.topbar .icon-button {
+  flex: none;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: rgba(8, 12, 24, 0.6);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.topbar .icon-button:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(30, 40, 74, 0.7);
+}
+
 /* 想法按鈕靠右，後面接設定按鈕；未完成的數量用徽章顯示。待送出按鈕出現時它排在最前面並接手靠右 */
 .topbar__ideas,
 .topbar__outbox {
@@ -294,6 +336,12 @@ textarea {
 
 .topbar__outbox .icon-button {
   color: var(--offline);
+}
+
+.topbar__ideas .badge,
+.topbar__outbox .badge {
+  top: -5px;
+  right: -5px;
 }
 
 .badge {
@@ -323,15 +371,38 @@ textarea {
   flex-direction: column;
   max-height: 70dvh;
   padding: 4px 4px 8px 16px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--surface);
   backdrop-filter: blur(12px);
+  /* 外圍一圈霓虹光暈：青綠到紫，低調一點 */
+  box-shadow:
+    0 0 14px rgba(34, 211, 238, 0.2),
+    0 0 30px rgba(168, 85, 247, 0.16);
+}
+
+/* 霓虹漸層邊框：只取邊框那一圈（用遮罩把中間挖空） */
+.composer::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(115deg, rgba(34, 211, 238, 0.9), rgba(99, 102, 241, 0.7) 50%, rgba(192, 132, 252, 0.9));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .composer__row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 4px;
 }
 
@@ -357,6 +428,12 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.field--check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
 
 .field--inline {
@@ -432,6 +509,14 @@ textarea {
   border-color: var(--accent);
   background: rgba(255, 217, 138, 0.15);
   color: var(--accent);
+}
+
+/* 思維框架：窄螢幕自動換行，不橫向捲動 */
+.framework-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
 }
 
 .segmented {
@@ -544,14 +629,20 @@ textarea {
   color: var(--offline);
 }
 
+/* 會隨內容長高的輸入框，高度由 ChatInput 設定，最高 160px 之後在框內捲動 */
 .composer__input {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  min-height: 40px;
+  max-height: 160px;
+  padding: 8px 0;
   border: none;
   outline: none;
   background: transparent;
   font-size: 16px; /* 16px 以上，iOS 點擊時才不會自動放大 */
+  line-height: 24px;
+  resize: none;
+  overflow-y: auto;
 }
 
 .composer__input::placeholder {
@@ -560,7 +651,33 @@ textarea {
 
 /* AI 對話與整理 */
 .composer__tabs {
-  padding: 8px 12px 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 6px 0;
+}
+
+.composer__tabs .segmented {
+  gap: 2px;
+  padding: 2px;
+  overflow: visible; /* 讓選中項目的光暈不被切掉 */
+}
+
+.composer__tabs .segmented__item {
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+/* 選中的分頁（記錄／問宇宙）：更亮的暖金色光暈 */
+.composer__tabs .segmented__item--on {
+  border-color: rgba(255, 217, 138, 0.6);
+  background: rgba(255, 200, 90, 0.22);
+  color: #ffe6a8;
+  text-shadow: 0 0 8px rgba(255, 200, 90, 0.6);
+  box-shadow:
+    0 0 12px rgba(255, 196, 80, 0.55),
+    inset 0 0 8px rgba(255, 217, 138, 0.28);
 }
 
 .composer__note {
@@ -637,43 +754,6 @@ textarea {
   padding-top: 8px;
 }
 
-.composer__ai {
-  min-height: 0;
-  overflow-y: auto;
-  padding: 4px 12px 0 0;
-}
-
-.composer__ai-text {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  max-height: 35dvh;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 16px;
-  resize: vertical;
-}
-
-.composer__ai-text:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.composer__ai-text::placeholder {
-  color: var(--text-dim);
-}
-
-.composer__ai-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 8px;
-}
-
 .composer__mic {
   color: var(--text-dim);
 }
@@ -681,13 +761,6 @@ textarea {
 .composer__mic--on {
   color: var(--offline);
   background: rgba(248, 113, 113, 0.12);
-}
-
-.composer__go {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 40px;
 }
 
 .composer__send {
@@ -1006,16 +1079,30 @@ a.button {
   color: var(--accent);
 }
 
-.record__kind--birth {
-  color: var(--text);
+.record__kind--incubating {
+  border-style: dashed;
+  color: var(--text-dim);
 }
 
-.record__outcome--success {
-  color: var(--online);
+.record--on {
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 8px;
 }
 
-.record__outcome--failure {
-  color: var(--offline);
+.record__select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 2px 0 0;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
 }
 
 .record__problem {
@@ -1024,6 +1111,10 @@ a.button {
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.record__edit {
+  margin-top: 8px;
 }
 
 .record__nodes {
@@ -1276,7 +1367,806 @@ a.button {
 }
 button.review__item, .review__link { cursor: pointer; }
 button.review__item:hover, .review__link:hover { background: var(--border); }
-@media (max-width: 400px) {
-  .topbar { gap: 4px; }
-  .topbar .icon-button { width: 36px; }
+/* 窄手機：按鈕維持 40px，靠縮小間距與名稱騰出位置（小於 370px 就只留狀態燈） */
+@media (max-width: 420px) {
+  .topbar {
+    gap: 4px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .brand {
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+}
+
+@media (max-width: 370px) {
+  .brand { display: none; }
+}
+
+/* 思考軌道：五個階段排成一圈，有內容的亮起 */
+.orbit {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.orbit--small {
+  width: 88px;
+  flex: none;
+  margin: 0;
+}
+
+.orbit__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.orbit__ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.orbit__path {
+  fill: none;
+  stroke: var(--text-dim);
+  stroke-opacity: 0.35;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 5;
+}
+
+.orbit__core circle {
+  fill: var(--surface-solid);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.orbit__core text {
+  fill: var(--accent);
+  font-size: 15px;
+}
+
+.orbit__planet text {
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.orbit__hit {
+  fill: transparent;
+}
+
+.orbit__planet--lit .orbit__body {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.orbit__planet--lit text {
+  fill: var(--bg);
+  font-weight: 600;
+}
+
+.orbit__planet--dim {
+  opacity: 0.45;
+}
+
+.orbit__planet--dim .orbit__body {
+  fill: transparent;
+  stroke: var(--text-dim);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.orbit__planet--dim text {
+  fill: var(--text-dim);
+}
+
+.orbit__planet--on .orbit__body,
+.orbit__core--on circle {
+  stroke: var(--text);
+  stroke-width: 2.5;
+}
+
+.orbit__core[role='button'],
+.orbit__planet[role='button'] {
+  cursor: pointer;
+  outline: none;
+}
+
+.orbit__core:focus-visible circle,
+.orbit__planet:focus-visible .orbit__body {
+  stroke: var(--text);
+  stroke-width: 3;
+}
+
+.orbit--small .orbit__planet text,
+.orbit--small .orbit__core text {
+  display: none;
+}
+
+.orbit__detail {
+  min-height: 3em;
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.orbit__detail strong {
+  margin-right: 8px;
+  color: var(--accent);
+}
+
+.orbit__detail-hint {
+  color: var(--text-dim);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .orbit:not(.orbit--small) .orbit__planet--lit .orbit__body {
+    animation: orbit-pulse 3.6s ease-in-out infinite;
+  }
+}
+
+@keyframes orbit-pulse {
+  50% {
+    fill-opacity: 0.8;
+  }
+}
+
+/* 設定面板的可收合區塊 */
+.collapsible {
+  border-bottom: 1px solid var(--border);
+}
+
+.collapsible__summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.collapsible__summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible__summary h3 {
+  margin: 0;
+  flex: 1;
+}
+
+.collapsible__chevron {
+  flex: none;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+}
+
+.collapsible[open] > .collapsible__summary .collapsible__chevron {
+  transform: rotate(90deg);
+}
+
+.collapsible__summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.collapsible__body {
+  padding-bottom: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsible__chevron {
+    transition: none;
+  }
+}
+
+/* 對話窗：使用者與 AI 的訊息，窄螢幕在卡片內捲動 */
+.chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-height: 0;
+  max-height: 45dvh;
+  overflow-y: auto;
+  padding: 8px 12px 4px 0;
+}
+
+.bubble {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.bubble--user {
+  align-self: flex-end;
+  background: rgba(255, 217, 138, 0.15);
+  color: var(--accent);
+}
+
+.bubble--skipped {
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bubble--ai {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.bubble--pending {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+}
+
+.bubble__question {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.bubble__question:last-child {
+  margin-bottom: 0;
+}
+
+/* 草稿存檔與展開編輯：對話下方一直都在 */
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 12px 6px 0;
+}
+
+.chat-actions .button {
+  flex: 1 1 120px;
+  min-height: 40px;
+}
+
+.chat-actions__plain {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+/* 記錄日期：小小的可編輯標籤，預設今天 */
+.date-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-height: 32px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.date-chip input {
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  color-scheme: dark;
+}
+
+.link-button {
+  min-height: 32px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.form-error .link-button {
+  margin-left: 6px;
+}
+
+/* AI 整理出來的草稿摘要（對話裡的一則訊息） */
+.followup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.followup__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.followup__info {
+  min-width: 0;
+}
+
+.followup__topic {
+  margin: 6px 0 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.followup__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.followup__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 新星系的確認：三個選項都不預選，要自己點一個 */
+.galaxy-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.galaxy-choice__label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.galaxy-choice__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.galaxy-choice .chip {
+  white-space: normal;
+  text-align: left;
+}
+
+.galaxy-choice__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--offline);
+}
+
+/* 存檔後自動歸類遇到新星系時的確認卡片 */
+.classify-prompt {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 112px);
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100% - 2 * var(--gutter)));
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-solid);
+  font-size: 14px;
+  transform: translateX(-50%);
+}
+
+.classify-prompt p {
+  margin: 0;
+}
+
+/* 設定：整理宇宙 */
+.tidy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tidy__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 14px;
+}
+
+.tidy__item p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tidy__reason {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.tidy__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tidy__actions .button {
+  min-height: 36px;
+}
+
+.followup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.followup__button {
+  flex: 1 1 140px;
+  min-height: 44px;
+  padding: 8px 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.followup__button--plain {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+/* 想法收件匣：依主題分組 */
+.idea-topic {
+  margin-top: 12px;
+}
+
+.idea-topic__head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.idea-topic__toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.idea-topic__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idea-topic__count {
+  flex: none;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.idea-topic__input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 16px;
+}
+
+.idea-topic__input:focus {
+  border-color: var(--accent);
+}
+
+.idea-topic__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.idea-topic__actions .button {
+  min-height: 36px;
+}
+
+.idea__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.idea__move {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
+/* 時間線：密度圖在上，下面依日期排列 */
+.timeline {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.timeline__filters,
+.timeline__custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.timeline__density {
+  margin: 4px 0 12px;
+}
+
+.timeline__chart {
+  display: block;
+  width: 100%;
+  height: 64px;
+  border-bottom: 1px solid var(--border);
+}
+
+.timeline__bar {
+  fill: var(--review-slow);
+}
+
+.timeline__axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 2px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.timeline__days,
+.timeline__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline__date {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 4px;
+  font-size: 14px;
+}
+
+.timeline__count {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* 左邊一條線串起每一筆，圓點顏色代表快慢思考 */
+.timeline__list {
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+
+.timeline__item {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.timeline__item:hover {
+  background: var(--border);
+}
+
+.timeline__dot {
+  position: absolute;
+  top: 14px;
+  left: -22px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.timeline__dot--slow {
+  background: var(--review-slow);
+}
+
+.timeline__dot--fast {
+  background: var(--review-fast);
+}
+
+.timeline__dot--incubating {
+  border: 2px dashed var(--text-dim);
+  background: var(--bg);
+}
+
+.timeline__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.timeline__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timeline__topic {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.timeline__time {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.timeline__problem {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.timeline__tags {
+  display: flex;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* 給 AI 的背景說明確認畫面（想法收件匣內） */
+.profile-dialog {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.profile-dialog h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.profile-dialog .panel__hint {
+  margin: 0;
+}
+
+.profile-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-dialog__actions .button {
+  min-height: 40px;
+}
+
+/* 匯入 AI 對話：貼上整段對話的區域 */
+.composer__tabs-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer__import {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  white-space: nowrap;
+}
+
+.import-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 4px 0;
+}
+
+.import-chat__text {
+  min-height: 140px;
+  max-height: 40dvh;
+  resize: vertical;
+}
+
+.import-chat__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* AI 觀點：AI 回答的摘要，用虛線與冷色調和使用者自己的節點區分 */
+.ai-view {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(140, 180, 255, 0.45);
+  border-radius: 10px;
+  background: rgba(120, 160, 255, 0.08);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-view__label {
+  color: #a9c4ff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ai-view__text {
+  margin: 0;
+  max-height: 9em;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ai-view__note {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.field--ai .field__label {
+  color: #a9c4ff;
 }

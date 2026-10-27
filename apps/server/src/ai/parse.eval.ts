@@ -1,4 +1,4 @@
-// AI 整理的回歸測試：用真的模型跑固定的 8 句口語，檢查快慢思考、結果、分類等判定
+// AI 整理的回歸測試：用真的模型跑固定的 8 句口語，檢查快慢思考、結果等判定
 // 需要模型在執行中，所以不放進 npm test。改完整理提示詞後執行：
 //   EVAL_AI_MODEL=<模型名稱> EVAL_AI_URL=http://127.0.0.1:8000/v1 npm run eval:parse -w apps/server
 // 選用：EVAL_RUNS=3 每句跑 3 次（模型有隨機性，看通過率比較準）
@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createApp } from '../app.js'
 import { openDb } from '../db.js'
+import { classifyRecord } from '../rules.js'
 import type { Draft } from './features.js'
 
 const model = process.env.EVAL_AI_MODEL
@@ -17,14 +18,12 @@ if (!model) {
 const localUrl = process.env.EVAL_AI_URL ?? 'http://127.0.0.1:8000/v1'
 const runs = Math.max(1, Number(process.env.EVAL_RUNS ?? 1))
 
-type Check = { label: string; ok: (draft: Draft, ctx: { categoryName: string | null; sameStar: boolean }) => boolean }
+type Check = { label: string; ok: (draft: Draft, ctx: { sameStar: boolean }) => boolean }
 type Case = { text: string; checks: Check[] }
 
-const filled = (value: string | null) => !!value?.trim()
-const isSlow = (draft: Draft) => filled(draft.mindset) || filled(draft.thinking)
+const isSlow = (draft: Draft) => classifyRecord(draft) === 'slow'
 const slow = (expected: boolean): Check => ({ label: expected ? '慢思考' : '快思考', ok: (d) => isSlow(d) === expected })
 const outcome = (...allowed: Draft['outcome'][]): Check => ({ label: `結果 ${allowed.join('/')}`, ok: (d) => allowed.includes(d.outcome) })
-const category = (name: string): Check => ({ label: `分類 ${name}`, ok: (_, ctx) => ctx.categoryName === name })
 const mode = (expected: Draft['mode']): Check => ({ label: `模式 ${expected}`, ok: (d) => d.mode === expected })
 const inField = (field: keyof Draft, words: string, label: string): Check => ({
   label,
@@ -67,17 +66,16 @@ const CASES: Case[] = [
       slow(true),
       { label: '換位思考放在思維或思考', ok: (d) => `${d.mindset ?? ''}${d.thinking ?? ''}`.includes('趕時間') },
       outcome('success'),
-      category('工作'),
       { label: '認出既有星體', ok: (_, ctx) => ctx.sameStar },
     ],
   },
   {
     text: '早上搭捷運的時候突然想到，週報其實可以先寫結論再寫細節，主管每次都只看前面幾行。還沒試，下週來改改看。',
-    checks: [slow(false), outcome('unknown'), category('工作'), mode('background'), inField('idea', '先寫結論', '點子放在想法')],
+    checks: [slow(false), outcome('unknown'), mode('background'), inField('idea', '先寫結論', '點子放在想法')],
   },
   {
     text: '晚上小孩不肯寫功課，我一火就直接罵他，結果他哭了，功課也沒寫完。',
-    checks: [slow(false), outcome('failure'), category('家庭')],
+    checks: [slow(false), outcome('failure')],
   },
   {
     text: '想買新的筆電，比較了三台：一台便宜但螢幕差、一台貴但很輕、一台中間。想到我每天要背去公司，最後選了輕的那台，用了一週覺得值得。',
@@ -85,19 +83,19 @@ const CASES: Case[] = [
   },
   {
     text: '跑步跑到第五公里膝蓋開始痛，我直接停下來走回家。',
-    checks: [slow(false), outcome('unknown', 'success'), category('健康')],
+    checks: [slow(false), outcome('unknown', 'success')],
   },
   {
     text: '客戶在電話裡抱怨交期太慢，我第一個反應是覺得他很盧，但後來站在他的角度想，他也有老闆在壓，所以我拆成兩批先出一半，他接受了。',
-    checks: [slow(true), inField('idea', '盧', '第一反應放在想法'), outcome('success'), category('工作')],
+    checks: [slow(true), inField('idea', '盧', '第一反應放在想法'), outcome('success')],
   },
   {
     text: '洗澡的時候想到，家裡的帳可以每個月固定一天一起對，不然每次都吵。',
-    checks: [slow(false), outcome('unknown'), category('家庭'), mode('background')],
+    checks: [slow(false), outcome('unknown'), mode('background')],
   },
   {
     text: '今天被同事說我做事太急，有點不服氣，還在想他說的對不對。',
-    checks: [outcome('unknown'), category('工作'), inField('awareness', '不服氣', '感受放在意識')],
+    checks: [outcome('unknown'), inField('awareness', '不服氣', '感受放在意識')],
   },
 ]
 
@@ -116,15 +114,11 @@ const call = async (method: string, path: string, body?: unknown) => {
 }
 
 await call('PUT', '/api/settings', { ai: { provider: 'local', model, ollamaUrl: 'http://127.0.0.1:11434', localUrl } })
-const categories = new Map<string, string>()
-for (const name of ['工作', '家庭', '健康']) categories.set((await call('POST', '/api/categories', { name })).id, name)
-const workId = [...categories].find(([, name]) => name === '工作')![0]
 const existing = await call('POST', '/api/entries', {
   problem: '開會時被主管打斷',
   outcome: 'success',
   mode: 'active',
   topic: '會議中被打斷',
-  categoryId: workId,
 })
 
 let passed = 0
@@ -142,7 +136,7 @@ for (const [index, item] of CASES.entries()) {
       failures.set('呼叫失敗', (failures.get('呼叫失敗') ?? 0) + 1)
       continue
     }
-    const ctx = { categoryName: draft.categoryId ? categories.get(draft.categoryId) ?? null : null, sameStar: draft.starId === existing.star.id }
+    const ctx = { sameStar: draft.starId === existing.star.id }
     const missed = [...common(item.text), ...item.checks].filter((check) => !check.ok(draft, ctx)).map((check) => check.label)
     if (missed.length === 0) passed++
     for (const label of missed) failures.set(label, (failures.get(label) ?? 0) + 1)
@@ -151,7 +145,7 @@ for (const [index, item] of CASES.entries()) {
     const nodes = NODES
       .map((field) => `${field}=${draft[field] ?? '∅'}`)
       .join('｜')
-    console.log(`   ${nodes}｜${draft.outcome}/${draft.mode}｜${ctx.categoryName ?? draft.newCategoryName ?? '未分類'}`)
+    console.log(`   ${nodes}｜${draft.outcome}/${draft.mode}｜${draft.kind}｜新星系 ${draft.newGroupName ?? '∅'}｜追問 ${draft.followUp?.field ?? '∅'}｜發生時間 ${draft.occurredAt ?? '∅'}`)
   }
 }
 

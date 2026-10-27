@@ -117,14 +117,14 @@ export function ReviewPanel({ open, onClose, onOpenStar, refreshKey, aiEnabled }
         <section className="review__section">
           <h3>快慢思考比例</h3>
           {review.totals.slow + review.totals.fast === 0 ? <p className="panel__hint">這段期間還沒有快慢思考的紀錄</p> : <Ratio slow={review.totals.slow} fast={review.totals.fast} />}
-          <p className="panel__hint">另有 {review.totals.birth} 顆新星誕生</p>
-          {/* 只有新星誕生的分類沒有快慢可比，不畫比例條 */}
-          {review.byCategory.filter((category) => category.slow + category.fast > 0).map((category) => <div className="review__category" key={category.categoryId ?? 'uncategorized'}>
-            <h4>{category.name}</h4><Ratio slow={category.slow} fast={category.fast} />
+          <p className="panel__hint">另有 {review.totals.incubating} 筆背景思考中</p>
+          {/* 只有背景思考中的星系團沒有快慢可比，不畫比例條 */}
+          {review.byCluster.filter((cluster) => cluster.slow + cluster.fast > 0).map((cluster) => <div className="review__category" key={cluster.clusterId ?? 'unclustered'}>
+            <h4>{cluster.name}</h4><Ratio slow={cluster.slow} fast={cluster.fast} />
           </div>)}
           <h4>依時間（{review.byTime.unit === 'day' ? '每日' : '每週，週一開始'}）</h4>
           <div className="review__chart" aria-label="快慢思考時間分布">
-            {review.byTime.buckets.map((bucket) => <div className="review__column" key={bucket.start} title={`${bucket.start}：慢思考 ${bucket.slow}、快思考 ${bucket.fast}、誕生 ${bucket.birth}`}>
+            {review.byTime.buckets.map((bucket) => <div className="review__column" key={bucket.start} title={`${bucket.start}：慢思考 ${bucket.slow}、快思考 ${bucket.fast}、背景思考中 ${bucket.incubating}`}>
               <div className="review__column-bars" role="img" aria-label={`${bucket.start}：慢思考 ${bucket.slow} 筆，快思考 ${bucket.fast} 筆`}>
                 <span className="review__fast" style={{ height: `${bucket.fast / maxCount * 100}%` }} />
                 <span className="review__slow" style={{ height: `${bucket.slow / maxCount * 100}%` }} />
@@ -140,7 +140,7 @@ export function ReviewPanel({ open, onClose, onOpenStar, refreshKey, aiEnabled }
           {!review.fastFailures.length && <p className="panel__hint">這段期間沒有快思考失敗的紀錄</p>}
           <ul className="review__list">{review.fastFailures.map((record) => <li key={record.recordId}>
             <button className="review__item" onClick={() => openStar(record.starId)}>
-              <strong>{record.topic}</strong><span>{shortDate(record.occurredAt)} · {record.categoryName ?? '未分類'}</span>
+              <strong>{record.topic}</strong><span>{shortDate(record.occurredAt)}</span>
               <span>{record.problem}</span><span>{record.idea ?? '未填想法'} → {record.conclusion ?? '未填結論'}</span>
             </button>
           </li>)}</ul>

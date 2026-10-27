@@ -14,6 +14,7 @@ import {
   toJson,
   updateRow,
 } from '../http.js'
+import { recordFrameworksSchema } from '../rules.js'
 
 const text = z.string().nullable().optional()
 
@@ -24,9 +25,12 @@ export const recordFields = {
   awareness: text,
   idea: text,
   mindset: text,
+  mindsetFrameworks: recordFrameworksSchema.optional(),
   thinking: text,
   viewpoint: text,
   conclusion: text,
+  // AI 觀點：匯入 AI 對話時 AI 回答的摘要；不是使用者自己的節點，不計入點亮
+  aiAnswer: z.string().max(2000).nullable().optional(),
   outcome: z.enum(['success', 'failure', 'unknown']).optional(),
   mode: z.enum(['active', 'background']).optional(),
   source: z.enum(['manual', 'ai']).optional(),

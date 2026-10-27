@@ -21,9 +21,29 @@ export const now = () => new Date().toISOString()
 const toSnake = (key: string) => key.replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`)
 const toCamel = (key: string) => key.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase())
 
+// 思維框架存成 JSON 字串陣列；空、NULL 或壞掉的內容都當作沒選
+export function parseFrameworks(value: unknown): string[] {
+  if (typeof value !== 'string') return []
+  try {
+    const list: unknown = JSON.parse(value)
+    return Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+// 陣列欄位寫入前序列化；空陣列存成 NULL
+const toSql = (value: unknown) =>
+  (Array.isArray(value) ? (value.length > 0 ? JSON.stringify(value) : null) : value) as string | number | null
+
 // SQL 欄位是 snake_case，JSON 一律輸出 camelCase
 export function toJson(row: Row): Row {
-  return Object.fromEntries(Object.entries(row).map(([key, value]) => [toCamel(key), value]))
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      toCamel(key),
+      key === 'mindset_frameworks' ? parseFrameworks(value) : value,
+    ]),
+  )
 }
 
 export function parse<S extends z.ZodType>(schema: S, data: unknown): z.output<S> {
@@ -65,7 +85,7 @@ export function insertRow(db: DatabaseSync, table: Table, fields: Row) {
   const columns = entries.map(([key]) => toSnake(key)).join(', ')
   const marks = entries.map(() => '?').join(', ')
   db.prepare(`INSERT INTO ${table} (${columns}) VALUES (${marks})`).run(
-    ...entries.map(([, value]) => value as string | number | null),
+    ...entries.map(([, value]) => toSql(value)),
   )
 }
 
@@ -74,7 +94,7 @@ export function updateRow(db: DatabaseSync, table: Table, id: string, fields: Ro
   if (entries.length === 0) return
   const sets = [...entries.map(([key]) => `${toSnake(key)} = ?`), 'updated_at = ?'].join(', ')
   db.prepare(`UPDATE ${table} SET ${sets} WHERE id = ?`).run(
-    ...entries.map(([, value]) => value as string | number | null),
+    ...entries.map(([, value]) => toSql(value)),
     now(),
     id,
   )

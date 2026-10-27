@@ -10,6 +10,7 @@ import { categoriesRoutes } from './routes/categories.js'
 import { entriesRoutes } from './routes/entries.js'
 import { groupsRoutes } from './routes/groups.js'
 import { ideasRoutes } from './routes/ideas.js'
+import { inboxRoutes } from './routes/inbox.js'
 import { reviewRoutes } from './routes/review.js'
 import { recordsRoutes } from './routes/records.js'
 import { settingsRoutes } from './routes/settings.js'
@@ -29,9 +30,10 @@ export function createApp(db: DatabaseSync, { backupDir, backupKeep = 30, ai }: 
   app.route('/api/records', recordsRoutes(db))
   app.route('/api/review', reviewRoutes(db))
   app.route('/api/entries', entriesRoutes(db))
-  app.route('/api/ideas', ideasRoutes(db))
+  app.route('/api/ideas', ideasRoutes(db, ai))
   app.route('/api/settings', settingsRoutes(db))
   app.route('/api/ai', aiRoutes(db, ai))
+  app.route('/api/inbox', inboxRoutes(db, () => app, ai))
   app.route('/api', backupRoutes(db, backupDir === undefined ? undefined : () => createBackup(db, backupDir, backupKeep).name))
   if (backupDir !== undefined) app.route('/api/backups', backupsRoutes(db, { dir: backupDir, keep: backupKeep }))
 

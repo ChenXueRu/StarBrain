@@ -1,13 +1,19 @@
 import { useSyncExternalStore } from 'react'
 import { createEntry, createIdea, isNetworkError } from './api'
 import type { EntryInput, EntryResult } from './api'
+import { getInboxCache, relayToInbox } from './inbox'
 
 // 連不到電腦時，新紀錄與新想法先存在這台裝置，恢復連線後依序送出
+// relayedAt：已經放進雲端收件匣的時間；仍留在本機，之後正常送出時伺服器靠 clientRef 去重
 export type OutboxItem =
-  | { clientRef: string; kind: 'entry'; body: EntryInput; queuedAt: string }
-  | { clientRef: string; kind: 'idea'; body: { text: string; createdAt: string }; queuedAt: string }
+  | { clientRef: string; kind: 'entry'; body: EntryInput; queuedAt: string; relayedAt?: string }
+  | { clientRef: string; kind: 'idea'; body: { text: string; createdAt: string }; queuedAt: string; relayedAt?: string }
 
 export const QUEUED_MESSAGE = '目前連不到電腦，已暫存在這台裝置，恢復連線後會自動送出'
+export const RELAYED_MESSAGE = '電腦目前離線，已送到雲端收件匣，電腦開機後會自動匯入'
+
+// 剛暫存的那一筆有沒有成功送進雲端收件匣，決定要顯示哪一則提示
+export const queuedMessage = () => (getOutbox().at(-1)?.relayedAt ? RELAYED_MESSAGE : QUEUED_MESSAGE)
 
 const KEY = 'starbrain.outbox'
 
@@ -91,6 +97,23 @@ const newRef = () =>
     : Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('')
 
 const enqueue = (item: OutboxItem) => save([...getOutbox(), item])
+const markRelayed = (clientRef: string) =>
+  save(getOutbox().map((item) => (item.clientRef === clientRef ? { ...item, relayedAt: new Date().toISOString() } : item)))
+
+// 把還沒送進雲端收件匣的暫存資料送過去；沒有設定收件匣或送不成功就安靜地留在本機。回傳這次成功幾筆
+async function relayPending(): Promise<number> {
+  const cache = getInboxCache()
+  if (!cache) return 0
+  let relayed = 0
+  for (const item of getOutbox()) {
+    if (item.relayedAt) continue
+    if (await relayToInbox(cache, item)) {
+      markRelayed(item.clientRef)
+      relayed++
+    }
+  }
+  return relayed
+}
 const remove = (clientRef: string) => save(getOutbox().filter((item) => item.clientRef !== clientRef))
 
 // 送出一筆紀錄；連不到電腦時改為暫存並回傳 null。其他錯誤照常丟出
@@ -102,6 +125,7 @@ export async function sendEntry(input: EntryInput): Promise<EntryResult | null> 
   } catch (err) {
     if (!isNetworkError(err)) throw err
     enqueue({ clientRef, kind: 'entry', body, queuedAt: new Date().toISOString() })
+    await relayPending()
     return null
   }
 }
@@ -116,6 +140,7 @@ export async function sendIdea(text: string): Promise<'sent' | 'queued'> {
   } catch (err) {
     if (!isNetworkError(err)) throw err
     enqueue({ clientRef, kind: 'idea', body, queuedAt: new Date().toISOString() })
+    await relayPending()
     return 'queued'
   }
 }
@@ -126,12 +151,15 @@ export type FlushResult = {
   rejected: string[]
   // 因為連不到電腦（或伺服器暫時出錯）而中途停下，剩下的留待下次
   stopped: boolean
+  // 連不到電腦時，這次新送進雲端收件匣的筆數（有才會出現）
+  relayed?: number
 }
 
 let flushing: Promise<FlushResult> | null = null
 
 async function run(): Promise<FlushResult> {
   const result: FlushResult = { sent: 0, rejected: [], stopped: false }
+  let offline = false
   for (const item of getOutbox()) {
     try {
       if (item.kind === 'entry') await createEntry({ ...item.body, clientRef: item.clientRef })
@@ -143,11 +171,17 @@ async function run(): Promise<FlushResult> {
       // 連不到、或伺服器暫時出錯（5xx）：資料保留，順序不能亂，所以整批停下
       if (isNetworkError(err) || status === undefined || status >= 500) {
         result.stopped = true
+        offline = isNetworkError(err)
         break
       }
       remove(item.clientRef)
       result.rejected.push(err instanceof Error ? err.message : '未知的錯誤')
     }
+  }
+  // 電腦連不到：改把還沒放進雲端收件匣的資料送過去
+  if (offline) {
+    const relayed = await relayPending()
+    if (relayed > 0) result.relayed = relayed
   }
   return result
 }

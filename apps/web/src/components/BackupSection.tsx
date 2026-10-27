@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react'
 import { createBackup, importData, listBackups, restoreBackup } from '../api'
 import type { BackupInfo, BackupItem, ImportCounts } from '../api'
 import { formatDateTime } from '../starUtils'
+import { Collapsible } from './Collapsible'
 
 const SHOWN = 10
 
@@ -76,8 +77,7 @@ export function BackupSection({ onDataReplaced }: { onDataReplaced: (message: st
   const items = info?.items ?? []
 
   return (
-    <section className="settings-section">
-      <h3>備份</h3>
+    <Collapsible title="備份">
       {info && (
         <p className="panel__hint backup__info">
           備份資料夾：{info.dir}
@@ -115,6 +115,6 @@ export function BackupSection({ onDataReplaced }: { onDataReplaced: (message: st
         <input ref={fileRef} type="file" accept="application/json,.json" hidden aria-label="選擇要匯入的 JSON 檔" onChange={onFile} />
       </div>
       {error && <p className="form-error">{error}</p>}
-    </section>
+    </Collapsible>
   )
 }

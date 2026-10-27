@@ -46,7 +46,7 @@ describe('createBackup / listBackups', () => {
     assert.ok(Math.abs(Date.parse(item.createdAt) - Date.now()) < 5000)
     const data = JSON.parse(readFileSync(join(dir, item.name), 'utf8'))
     assert.equal(data.app, 'starbrain')
-    assert.equal(data.schemaVersion, 3)
+    assert.equal(data.schemaVersion, 7)
     assert.deepEqual(readdirSync(dir), [item.name])
     assert.deepEqual(listBackups(dir), [item])
   })

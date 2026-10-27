@@ -1,6 +1,8 @@
-// StarBrain service worker：只負責讓 App 能安裝、開啟更快；資料（/api）一律不快取
+// StarBrain service worker：讓 App 能安裝、開啟更快；資料（/api）只有幾個讀取用的路徑會留一份離線唯讀的副本，其餘不處理
 // 改了這個檔案或要強制清掉舊快取時，把版本號加一
-const CACHE = 'starbrain-v2'
+const CACHE = 'starbrain-v3'
+// 離線唯讀的資料副本；獨立一個快取，換版時不清掉
+const DATA_CACHE = 'starbrain-data-v1'
 const PRECACHE = [
   '/',
   '/manifest.webmanifest',
@@ -18,7 +20,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== DATA_CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   )
 })
@@ -48,6 +50,36 @@ async function networkFirst(request) {
   return cached ?? response ?? Response.error()
 }
 
+// 宇宙畫面用到的讀取：星體清單、星系、單一星體、想法清單（不含 /api/stars/similar）
+const isReadEndpoint = (pathname) =>
+  pathname === '/api/stars' ||
+  pathname === '/api/groups' ||
+  pathname === '/api/ideas' ||
+  (/^\/api\/stars\/[^/]+$/.test(pathname) && pathname !== '/api/stars/similar')
+
+// 讀取資料：優先拿最新的並存一份；連不到電腦（或 Cloudflare 閘道錯誤）時改回傳上次的副本，並加標頭讓畫面知道是離線資料
+async function dataNetworkFirst(request) {
+  let response = null
+  try {
+    response = await fetch(request)
+  } catch {
+    // 連不上，往下用副本
+  }
+  if (response && !isGatewayError(response.status)) {
+    if (response.ok) {
+      const cache = await caches.open(DATA_CACHE)
+      await cache.put(request, response.clone())
+    }
+    return response
+  }
+  const cache = await caches.open(DATA_CACHE)
+  const cached = await cache.match(request)
+  if (!cached) return response ?? Response.error()
+  const headers = new Headers(cached.headers)
+  headers.set('X-StarBrain-Offline', '1')
+  return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers })
+}
+
 // /assets/ 的檔名帶 hash，內容不會變，有快取就直接用
 async function cacheFirst(request) {
   const cached = await caches.match(request)
@@ -70,7 +102,11 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
-  if (url.pathname.startsWith('/api/')) return // 不處理，交給瀏覽器直接連網路
+  if (url.pathname.startsWith('/api/')) {
+    // 只有讀取用的幾個路徑做離線副本，其餘交給瀏覽器直接連網路
+    if (isReadEndpoint(url.pathname)) event.respondWith(dataNetworkFirst(request))
+    return
+  }
 
   if (request.mode === 'navigate') event.respondWith(networkFirst(request))
   else if (url.pathname.startsWith('/assets/')) event.respondWith(cacheFirst(request))

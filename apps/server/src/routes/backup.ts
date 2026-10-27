@@ -91,6 +91,27 @@ function validate(data: Backup) {
   }
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+// 版本 5 之前的備份是四層群組：與資料庫 migration 5 相同，星系群改掛到原星系團的上層，
+// 星系團與超星系團各降一層，並丟掉不再使用的 levelNames 設定
+function upgradeGroups(raw: Record<string, unknown>): Record<string, unknown> {
+  if (typeof raw.schemaVersion !== 'number' || raw.schemaVersion >= 5 || !Array.isArray(raw.groups)) return raw
+  const byId = new Map(raw.groups.filter(isRecord).map((group) => [group.id, group]))
+  const groups = raw.groups.map((group) => {
+    if (!isRecord(group) || typeof group.level !== 'number') return group
+    const parent = group.level === 2 ? byId.get(group.parentId) : undefined
+    return {
+      ...group,
+      level: group.level >= 3 ? group.level - 1 : group.level,
+      ...(parent?.level === 3 && { parentId: parent.parentId ?? null }),
+    }
+  })
+  const settings = isRecord(raw.settings) ? Object.fromEntries(Object.entries(raw.settings).filter(([key]) => key !== 'levelNames')) : raw.settings
+  return { ...raw, groups, settings }
+}
+
 // 檢查備份內容（格式、版本、關聯），通過才回傳可匯入的資料；匯入與還原共用
 export function parseBackup(input: unknown): Backup {
   const raw = parse(z.looseObject({ app: z.unknown(), schemaVersion: z.unknown() }), input)
@@ -98,7 +119,7 @@ export function parseBackup(input: unknown): Backup {
   if (typeof raw.schemaVersion === 'number' && raw.schemaVersion > SCHEMA_VERSION) {
     throw new HttpError(400, `備份檔版本 ${raw.schemaVersion} 比目前支援的版本 ${SCHEMA_VERSION} 新，請先更新 StarBrain`)
   }
-  const data = parse(backupSchema, raw)
+  const data = parse(backupSchema, upgradeGroups(raw))
   validate(data)
   return data
 }

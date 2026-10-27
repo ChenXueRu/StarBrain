@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
-import { deleteRow, getRow, insertRow, now, parse, parseBody, requireRef, toJson, updateRow } from '../http.js'
+import { deleteRow, getRow, insertRow, now, parse, parseBody, parseFrameworks, requireRef, toJson, updateRow } from '../http.js'
 import type { Row } from '../http.js'
 import { evaluateStar } from '../rules.js'
 import type { RuleRecord } from '../rules.js'
@@ -27,7 +27,7 @@ const SIMILAR_THRESHOLD = 0.3
 // 一次讀出紀錄（指定星體或全部），在記憶體裡依星體分組後套用規則
 function evaluator(db: DatabaseSync, starId?: string) {
   const rules = readStarRules(db)
-  const sql = 'SELECT id, star_id, occurred_at, created_at, mindset, thinking, outcome FROM records'
+  const sql = 'SELECT id, star_id, occurred_at, created_at, awareness, idea, mindset, mindset_frameworks, thinking, viewpoint, conclusion, outcome FROM records'
   const rows = starId === undefined ? db.prepare(sql).all() : db.prepare(`${sql} WHERE star_id = ?`).all(starId)
   const byStar = new Map<string, RuleRecord[]>()
   for (const row of rows) {
@@ -36,8 +36,13 @@ function evaluator(db: DatabaseSync, starId?: string) {
       id: row.id as string,
       occurredAt: row.occurred_at as string,
       createdAt: row.created_at as string,
+      awareness: row.awareness as string | null,
+      idea: row.idea as string | null,
       mindset: row.mindset as string | null,
+      mindsetFrameworks: parseFrameworks(row.mindset_frameworks),
       thinking: row.thinking as string | null,
+      viewpoint: row.viewpoint as string | null,
+      conclusion: row.conclusion as string | null,
       outcome: row.outcome as string,
     })
     byStar.set(row.star_id as string, list)
@@ -57,7 +62,7 @@ function listStars(db: DatabaseSync): Row[] {
     })
 }
 
-// kinds 是每筆紀錄的 誕生／慢思考／快思考，供詳細內容與快速紀錄的 change 使用
+// kinds 是每筆紀錄的 快思考／慢思考／背景思考中，供詳細內容與快速紀錄的 change 使用
 export function loadStar(db: DatabaseSync, id: string) {
   const row = getRow(db, 'stars', id)
   const { kinds, ...stats } = evaluator(db, id)(id)
