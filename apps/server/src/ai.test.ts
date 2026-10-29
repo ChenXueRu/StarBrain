@@ -697,33 +697,33 @@ describe('POST /api/ai/parse', () => {
 
 // 使用者從別的 AI 拿到、已經標好節點的整理稿
 const LABELED = `🌟 StarBrain 星體紀錄
- * 建議超星系團：職業能力
- * 主題：舊電腦改裝 Linux 伺服器常駐專案
+ * 建議超星系團：生活態度
+ * 主題：陽台小番茄老是裂果
  * 意識（察覺）：
-   察覺到主力機 24 小時開機，每個月電費 200 多元。
+   察覺到下過大雨後，快熟的番茄一半都裂開。
  * 想法（直覺）：
-   能否把閒置零件組成低功耗 Linux 主機？
+   是不是澆水太不規律？
  * 思維（模型）：
    * 標籤：成本效益、正反比較
  * 思考（推敲）：
-   * 功耗效益：整機待機約 30W。
-   * 系統優勢：Linux Server 無圖形介面。
+   * 水分變化：乾了幾天突然大量吸水，果皮撐不住。
+   * 可行做法：固定早上澆水、盆土鋪稻草保濕。
  * 觀點（判斷）：
-   廢物利用自組家用伺服器能兼顧掌控與低成本。
+   穩定供水比多澆水更重要。
  * 結論（輸出）：
-   用閒置零件組無頭 Linux 伺服器。
+   改成每天定時少量澆水，下雨前先移到屋簷下。
 💡 欄位確認：有需要微調隨時告訴我！`
 
 describe('parseLabeledNodes', () => {
   test('依標籤切出各節點，括號別名、項目符號都認得，表情符號開頭的說明不算進去', () => {
     assert.deepEqual(parseLabeledNodes(LABELED), {
-      problem: '舊電腦改裝 Linux 伺服器常駐專案',
-      awareness: '察覺到主力機 24 小時開機，每個月電費 200 多元。',
-      idea: '能否把閒置零件組成低功耗 Linux 主機？',
+      problem: '陽台小番茄老是裂果',
+      awareness: '察覺到下過大雨後，快熟的番茄一半都裂開。',
+      idea: '是不是澆水太不規律？',
       mindset: '標籤：成本效益、正反比較',
-      thinking: '功耗效益：整機待機約 30W。\n系統優勢：Linux Server 無圖形介面。',
-      viewpoint: '廢物利用自組家用伺服器能兼顧掌控與低成本。',
-      conclusion: '用閒置零件組無頭 Linux 伺服器。',
+      thinking: '水分變化：乾了幾天突然大量吸水，果皮撐不住。\n可行做法：固定早上澆水、盆土鋪稻草保濕。',
+      viewpoint: '穩定供水比多澆水更重要。',
+      conclusion: '改成每天定時少量澆水，下雨前先移到屋簷下。',
     })
     assert.deepEqual(parseLabeledNodes('**意識**：很煩\n想法: 想反駁\n- 結論：先私下談'), {
       awareness: '很煩',
@@ -845,10 +845,10 @@ describe('POST /api/ai/import-chat', () => {
     answers.push({ ...IMPORTED, awareness: '', viewpoint: '模型自己寫的', conclusion: '' })
     const res = await call('POST', '/api/ai/import-chat', { conversation: LABELED })
     assert.equal(res.status, 200)
-    assert.equal(res.body.problem, '舊電腦改裝 Linux 伺服器常駐專案')
-    assert.equal(res.body.awareness, '察覺到主力機 24 小時開機，每個月電費 200 多元。')
-    assert.equal(res.body.viewpoint, '廢物利用自組家用伺服器能兼顧掌控與低成本。')
-    assert.equal(res.body.conclusion, '用閒置零件組無頭 Linux 伺服器。')
+    assert.equal(res.body.problem, '陽台小番茄老是裂果')
+    assert.equal(res.body.awareness, '察覺到下過大雨後，快熟的番茄一半都裂開。')
+    assert.equal(res.body.viewpoint, '穩定供水比多澆水更重要。')
+    assert.equal(res.body.conclusion, '改成每天定時少量澆水，下雨前先移到屋簷下。')
     assert.equal(res.body.followUp, null)
     assert.equal(sent.length, 1, '不另外呼叫追問')
   })

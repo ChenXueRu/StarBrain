@@ -82,7 +82,7 @@ Input → 問題 → 意識 → 想法 → 思維 → 思考 → 觀點 → 結�
  手機 / 電腦瀏覽器（PWA）
           │
           ▼
- starbrain.arulocal.com ── Cloudflare Tunnel + Access（只有你能登入）
+ starbrain.example.com ── Cloudflare Tunnel + Access（只有你能登入）
           │
           ▼
  家裡常駐電腦
@@ -223,5 +223,5 @@ Input → 問題 → 意識 → 想法 → 思維 → 思考 → 觀點 → 結�
 | 星體等級 | 預設最高六等，可調整 |
 | 使用者 | 只有你；空白專案發佈到 GitHub |
 | 常駐電腦 | 一般 24 小時開機；關機時手機先暫存 |
-| 子網域 | `starbrain.arulocal.com` |
+| 子網域 | `starbrain.example.com` |
 | 授權條款 | MIT |
